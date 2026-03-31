@@ -5,6 +5,9 @@ buffer7
 *.test
 *.test.exe
 
+# Documentation
+docs/
+
 # Testing
 coverage.out
 

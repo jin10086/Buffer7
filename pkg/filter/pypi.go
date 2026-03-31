@@ -17,11 +17,13 @@ var pypiMetadataCache sync.Map // key: string (packageName), value: pypiCacheEnt
 
 // FilterPyPI 过滤 PyPI 的 JSON 元数据
 func FilterPyPI(body []byte) ([]byte, error) {
-	// ... (保持现有逻辑不变)
 	var data map[string]interface{}
 	if err := json.Unmarshal(body, &data); err != nil {
 		return body, err
 	}
+
+	info, _ := data["info"].(map[string]interface{})
+	packageName, _ := info["name"].(string)
 
 	releases, ok := data["releases"].(map[string]interface{})
 	if !ok {
@@ -29,10 +31,12 @@ func FilterPyPI(body []byte) ([]byte, error) {
 	}
 
 	var forbidden []string
+	forbiddenVersions := make(map[string]bool)
 	for v, filesObj := range releases {
 		files, ok := filesObj.([]interface{})
 		if !ok || len(files) == 0 {
 			forbidden = append(forbidden, v)
+			forbiddenVersions[v] = true
 			continue
 		}
 
@@ -52,11 +56,16 @@ func FilterPyPI(body []byte) ([]byte, error) {
 
 		if !isSafe {
 			forbidden = append(forbidden, v)
+			forbiddenVersions[v] = true
 		}
 	}
 
 	for _, v := range forbidden {
 		delete(releases, v)
+	}
+
+	if packageName != "" {
+		pypiMetadataCache.Store(packageName, pypiCacheEntry{forbiddenVersions: forbiddenVersions})
 	}
 
 	return json.Marshal(data)

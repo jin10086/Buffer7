@@ -10,106 +10,22 @@ permissions:
   contents: write
 
 jobs:
-  build:
-    name: Build for ${{ matrix.os }} (${{ matrix.arch }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        include:
-          - os: ubuntu-latest
-            arch: amd64
-            goos: linux
-            goarch: amd64
-          - os: ubuntu-latest
-            arch: arm64
-            goos: linux
-            goarch: arm64
-          - os: macos-latest
-            arch: amd64
-            goos: darwin
-            goarch: amd64
-          - os: macos-latest
-            arch: arm64
-            goos: darwin
-            goarch: arm64
-          - os: windows-latest
-            arch: amd64
-            goos: windows
-            goarch: amd64
-
+  goreleaser:
+    runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
-
+        with:
+          fetch-depth: 0
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version: '1.21'
-          check-latest: true
-
-      - name: Install dependencies
-        run: go mod download
-
-      - name: Run tests
-        # 仅在原生平台上运行测试，避免交叉编译环境下的测试失败
-        if: matrix.os != 'ubuntu-latest' || matrix.arch == 'amd64'
-        run: |
-          if [ "${{ runner.os }}" == "macOS" ]; then
-            go test -ldflags="-linkmode=external" ./...
-          else
-            go test ./...
-          fi
-        shell: bash
-
-      - name: Build Binary
-        run: |
-          BINARY_NAME="buffer7"
-          if [ "${{ matrix.goos }}" == "windows" ]; then
-            BINARY_NAME="buffer7.exe"
-          fi
-          
-          # 根据不同平台调整构建参数
-          LDFLAGS="-s -w"
-          if [ "${{ matrix.goos }}" == "darwin" ]; then
-            LDFLAGS="$LDFLAGS -linkmode=external"
-          fi
-          
-          GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -ldflags="$LDFLAGS" -o "bin/$BINARY_NAME" main.go
-          
-          # 压缩二进制文件
-          cd bin
-          if [ "${{ matrix.goos }}" == "windows" ]; then
-            7z a "../buffer7-${{ matrix.goos }}-${{ matrix.arch }}.zip" "$BINARY_NAME"
-          else
-            tar -czvf "../buffer7-${{ matrix.goos }}-${{ matrix.arch }}.tar.gz" "$BINARY_NAME"
-          fi
-        shell: bash
-
-      - name: Upload Artifact
-        uses: actions/upload-artifact@v4
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v5
         with:
-          name: buffer7-${{ matrix.goos }}-${{ matrix.arch }}
-          path: buffer7-${{ matrix.goos }}-${{ matrix.arch }}.*
-
-  release:
-    name: Create Release
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-          pattern: buffer7-*
-          merge-multiple: true
-
-      - name: Create Release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: artifacts/*
-          generate_release_notes: true
-          draft: true
-          prerelease: true
-          tag_name: ${{ github.ref_name == 'master' && 'v0.0.0-test' || github.ref_name }}
+          distribution: goreleaser
+          version: latest
+          args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

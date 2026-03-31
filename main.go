@@ -9,6 +9,8 @@ import (
 	"github.com/buffer7/buffer7/pkg/proxy"
 )
 
+var version = "dev"
+
 func selectRegistry(cmdName string) (string, string) {
 	targetRegistry := os.Getenv("BUFFER7_UPSTREAM_REGISTRY")
 	envVar := "NPM_CONFIG_REGISTRY"
@@ -29,6 +31,11 @@ func selectRegistry(cmdName string) (string, string) {
 }
 
 func main() {
+	if len(os.Args) > 1 && (os.Args[1] == "-v" || os.Args[1] == "--version" || os.Args[1] == "version") {
+		fmt.Printf("buffer7 version %s\n", version)
+		os.Exit(0)
+	}
+
 	if len(os.Args) < 2 {
 		fmt.Println("Usage: buffer7 <command> [args...]")
 		os.Exit(1)

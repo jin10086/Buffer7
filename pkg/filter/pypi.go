@@ -73,47 +73,56 @@ func FilterPyPI(body []byte) ([]byte, error) {
 
 // FilterPyPISimple 过滤 PyPI 的 Simple API (HTML 或 JSON)
 func FilterPyPISimple(packageName string, body []byte) ([]byte, error) {
-	// 1. 获取该包的 JSON 元数据以确定不安全版本
-	jsonURL := fmt.Sprintf("https://pypi.org/pypi/%s/json", packageName)
-	resp, err := http.Get(jsonURL)
-	if err != nil {
-		return body, err
-	}
-	defer resp.Body.Close()
+	var forbiddenVersions map[string]bool
+	if val, ok := pypiMetadataCache.Load(packageName); ok {
+		forbiddenVersions = val.(pypiCacheEntry).forbiddenVersions
+	} else {
+		// 1. 获取该包 de JSON 元数据以确定不安全版本
+		jsonURL := fmt.Sprintf("https://pypi.org/pypi/%s/json", packageName)
+		resp, err := http.Get(jsonURL)
+		if err != nil {
+			return body, err
+		}
+		defer resp.Body.Close()
 
-	if resp.StatusCode != 200 {
-		return body, nil
-	}
+		if resp.StatusCode != 200 {
+			return body, nil
+		}
 
-	jsonBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return body, err
-	}
+		jsonBody, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return body, err
+		}
 
-	// 2. 解析 JSON 元数据获取禁用的版本列表
-	var metaData map[string]interface{}
-	if err := json.Unmarshal(jsonBody, &metaData); err != nil {
-		return body, err
-	}
+		// 2. 解析 JSON 元数据获取禁用的版本列表
+		var metaData map[string]interface{}
+		if err := json.Unmarshal(jsonBody, &metaData); err != nil {
+			return body, err
+		}
 
-	releases, ok := metaData["releases"].(map[string]interface{})
-	if !ok {
-		return body, nil
-	}
+		releases, ok := metaData["releases"].(map[string]interface{})
+		if !ok {
+			return body, nil
+		}
 
-	forbiddenVersions := make(map[string]bool)
-	for v, filesObj := range releases {
-		files, _ := filesObj.([]interface{})
-		isSafe := false
-		for _, f := range files {
-			fileMap, _ := f.(map[string]interface{})
-			if uploadTime, _ := fileMap["upload_time_iso_8601"].(string); IsSafe(uploadTime) {
-				isSafe = true
-				break
+		forbiddenVersions = make(map[string]bool)
+		for v, filesObj := range releases {
+			files, _ := filesObj.([]interface{})
+			isSafe := false
+			for _, f := range files {
+				fileMap, _ := f.(map[string]interface{})
+				if uploadTime, _ := fileMap["upload_time_iso_8601"].(string); IsSafe(uploadTime) {
+					isSafe = true
+					break
+				}
+			}
+			if !isSafe {
+				forbiddenVersions[v] = true
 			}
 		}
-		if !isSafe {
-			forbiddenVersions[v] = true
+
+		if packageName != "" {
+			pypiMetadataCache.Store(packageName, pypiCacheEntry{forbiddenVersions: forbiddenVersions})
 		}
 	}
 
@@ -140,11 +149,10 @@ func FilterPyPISimple(packageName string, body []byte) ([]byte, error) {
 			if keep {
 				filteredFiles = append(filteredFiles, file)
 			}
-			}
-			simpleData.Files = filteredFiles
-			return json.Marshal(simpleData)
-			}
-
+		}
+		simpleData.Files = filteredFiles
+		return json.Marshal(simpleData)
+	}
 
 	// 4. 否则退回到 HTML 处理
 	lines := strings.Split(string(body), "\n")

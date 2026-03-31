@@ -2,6 +2,7 @@ package filter
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 )
@@ -158,5 +159,62 @@ func TestPyPICache(t *testing.T) {
 	cachedEntry := val.(pypiCacheEntry)
 	if !cachedEntry.forbiddenVersions["1.0.0"] {
 		t.Error("Wrong cache value")
+	}
+}
+
+func TestFilterPyPISimpleCacheHit(t *testing.T) {
+	packageName := "cached-pkg-test"
+	forbiddenVersion := "2.0.0"
+
+	// 1. 手动向缓存注入禁止版本
+	pypiMetadataCache.Store(packageName, pypiCacheEntry{
+		forbiddenVersions: map[string]bool{forbiddenVersion: true},
+	})
+
+	// 2. 模拟 Simple API 的响应 (HTML 格式)
+	inputHTML := `
+<!DOCTYPE html>
+<html>
+  <body>
+    <a href="https://files.pythonhosted.org/packages/source/c/cached-pkg-test/cached-pkg-test-1.0.0.tar.gz">cached-pkg-test-1.0.0.tar.gz</a>
+    <a href="https://files.pythonhosted.org/packages/source/c/cached-pkg-test/cached-pkg-test-2.0.0.tar.gz">cached-pkg-test-2.0.0.tar.gz</a>
+  </body>
+</html>`
+
+	// 3. 调用 FilterPyPISimple，应该命中缓存且不需要执行 http.Get
+	// 由于我们注入了一个不存在的包名，如果它尝试 http.Get，会返回 404 或错误
+	// 但如果命中缓存，它将直接使用我们注入的 forbiddenVersions
+	filtered, err := FilterPyPISimple(packageName, []byte(inputHTML))
+	if err != nil {
+		t.Fatalf("FilterPyPISimple failed: %v", err)
+	}
+
+	filteredStr := string(filtered)
+	if !strings.Contains(filteredStr, "cached-pkg-test-1.0.0.tar.gz") {
+		t.Errorf("Expected 1.0.0 to be kept")
+	}
+	if strings.Contains(filteredStr, "cached-pkg-test-2.0.0.tar.gz") {
+		t.Errorf("Expected 2.0.0 to be filtered out via cache")
+	}
+
+	// 4. 测试 JSON 格式 (Simple JSON PEP 691)
+	inputJSON := `{"files": [{"filename": "cached-pkg-test-1.0.0.tar.gz"}, {"filename": "cached-pkg-test-2.0.0.tar.gz"}]}`
+	filteredJSON, err := FilterPyPISimple(packageName, []byte(inputJSON))
+	if err != nil {
+		t.Fatalf("FilterPyPISimple JSON failed: %v", err)
+	}
+
+	var outputJSON struct {
+		Files []map[string]interface{} `json:"files"`
+	}
+	if err := json.Unmarshal(filteredJSON, &outputJSON); err != nil {
+		t.Fatalf("Failed to unmarshal filtered JSON: %v", err)
+	}
+
+	if len(outputJSON.Files) != 1 {
+		t.Errorf("Expected 1 file, got %d", len(outputJSON.Files))
+	}
+	if filename, ok := outputJSON.Files[0]["filename"].(string); !ok || filename != "cached-pkg-test-1.0.0.tar.gz" {
+		t.Errorf("Expected cached-pkg-test-1.0.0.tar.gz, got %v", filename)
 	}
 }

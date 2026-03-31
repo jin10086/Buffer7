@@ -1,0 +1,13 @@
+# Binaries
+bin/
+buffer7
+*.exe
+*.test
+*.test.exe
+
+# Testing
+coverage.out
+
+# Go
+vendor/
+go.sum

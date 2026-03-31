@@ -87,6 +87,89 @@ func TestNPME2E(t *testing.T) {
 	}
 }
 
+func TestNPMChainedE2E(t *testing.T) {
+	if _, err := exec.LookPath("npm"); err != nil {
+		t.Skip("npm not found, skipping E2E test")
+	}
+
+	now := time.Now().UTC()
+	safeTime := now.AddDate(0, 0, -10).Format(time.RFC3339)
+	unsafeTime := now.AddDate(0, 0, -1).Format(time.RFC3339)
+
+	// Mock Registry: pkg-a -> pkg-b -> pkg-c
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if strings.Contains(r.URL.Path, "pkg-a") {
+			w.Write([]byte(`{
+				"name": "pkg-a",
+				"dist-tags": {"latest": "1.0.0"},
+				"time": {"1.0.0": "` + safeTime + `"},
+				"versions": {
+					"1.0.0": {
+						"name": "pkg-a",
+						"version": "1.0.0",
+						"dependencies": {"pkg-b": "^1.0.0"},
+						"dist": {"tarball": "http://example.com/a.tgz"}
+					}
+				}
+			}`))
+		} else if strings.Contains(r.URL.Path, "pkg-b") {
+			w.Write([]byte(`{
+				"name": "pkg-b",
+				"dist-tags": {"latest": "1.0.0"},
+				"time": {"1.0.0": "` + safeTime + `"},
+				"versions": {
+					"1.0.0": {
+						"name": "pkg-b",
+						"version": "1.0.0",
+						"dependencies": {"pkg-c": "^1.0.0"},
+						"dist": {"tarball": "http://example.com/b.tgz"}
+					}
+				}
+			}`))
+		} else if strings.Contains(r.URL.Path, "pkg-c") {
+			w.Write([]byte(`{
+				"name": "pkg-c",
+				"dist-tags": {"latest": "2.0.0"},
+				"time": {
+					"1.0.0": "` + safeTime + `",
+					"2.0.0": "` + unsafeTime + `"
+				},
+				"versions": {
+					"1.0.0": {
+						"name": "pkg-c",
+						"version": "1.0.0",
+						"dist": {"tarball": "http://example.com/c1.tgz"}
+					},
+					"2.0.0": {
+						"name": "pkg-c",
+						"version": "2.0.0",
+						"dist": {"tarball": "http://example.com/c2.tgz"}
+					}
+				}
+			}`))
+		}
+	}))
+	defer backend.Close()
+
+	tmpDir, _ := os.MkdirTemp("", "buffer7-npm-chained")
+	defer os.RemoveAll(tmpDir)
+
+	_, filename, _, _ := runtime.Caller(0)
+	rootPath := filepath.Join(filepath.Dir(filename), "../../")
+
+	cmd := exec.Command("go", "run", "main.go", "npm", "install", "pkg-a", "--prefix", tmpDir, "--no-bin-links")
+	cmd.Dir = rootPath
+	cmd.Env = append(os.Environ(), "BUFFER7_UPSTREAM_REGISTRY="+backend.URL, "CGO_ENABLED=0")
+	
+	output, _ := cmd.CombinedOutput()
+	outputStr := string(output)
+
+	if strings.Contains(outputStr, "pkg-c@2.0.0") {
+		t.Errorf("Expected pkg-c@2.0.0 to be filtered in chained dependency, but it appeared in output. Output: %s", outputStr)
+	}
+}
+
 func TestPyPIE2E(t *testing.T) {
 	// Check if pip or pip3 is available
 	pipCmd := "pip"
@@ -160,5 +243,60 @@ func TestPyPIE2E(t *testing.T) {
 	}
 	if !strings.Contains(outputStr, "1.0.0") {
 		t.Errorf("Expected pip to try installing 1.0.0, but it did not appear in output. Output: %s", outputStr)
+	}
+}
+
+func TestPyPIChainedE2E(t *testing.T) {
+	pipCmd := "pip"
+	if _, err := exec.LookPath(pipCmd); err != nil {
+		pipCmd = "pip3"
+		if _, err := exec.LookPath(pipCmd); err != nil {
+			t.Skip("pip/pip3 not found")
+		}
+	}
+
+	now := time.Now().UTC()
+	safeTime := now.AddDate(0, 0, -10).Format(time.RFC3339)
+	unsafeTime := now.AddDate(0, 0, -1).Format(time.RFC3339)
+
+	// Mock Registry: pkg-a -> pkg-b -> pkg-c
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/json") {
+			w.Header().Set("Content-Type", "application/json")
+			if strings.Contains(r.URL.Path, "pkg-a") {
+				w.Write([]byte(`{"info":{"name":"pkg-a","requires_dist":["pkg-b >=1.0.0"]},"releases":{"1.0.0":[{"upload_time_iso_8601":"` + safeTime + `","url":"https://example.com/pkg_a-1.0.0-py3-none-any.whl"}]}}`))
+			} else if strings.Contains(r.URL.Path, "pkg-b") {
+				w.Write([]byte(`{"info":{"name":"pkg-b","requires_dist":["pkg-c >=1.0.0"]},"releases":{"1.0.0":[{"upload_time_iso_8601":"` + safeTime + `","url":"https://example.com/pkg_b-1.0.0-py3-none-any.whl"}]}}`))
+			} else if strings.Contains(r.URL.Path, "pkg-c") {
+				w.Write([]byte(`{"info":{"name":"pkg-c"},"releases":{"1.0.0":[{"upload_time_iso_8601":"` + safeTime + `","url":"https://example.com/pkg_c-1.0.0-py3-none-any.whl"}],"2.0.0":[{"upload_time_iso_8601":"` + unsafeTime + `","url":"https://example.com/pkg_c-2.0.0-py3-none-any.whl"}]}}`))
+			}
+			return
+		}
+		w.Header().Set("Content-Type", "text/html")
+		if strings.HasPrefix(r.URL.Path, "/simple/pkg-c") {
+			w.Write([]byte(`<html><body><a href="...">pkg_c-1.0.0-py3-none-any.whl</a><a href="...">pkg_c-2.0.0-py3-none-any.whl</a></body></html>`))
+		} else if strings.HasPrefix(r.URL.Path, "/simple/pkg-a") {
+			w.Write([]byte(`<html><body><a href="...">pkg_a-1.0.0-py3-none-any.whl</a></body></html>`))
+		} else if strings.HasPrefix(r.URL.Path, "/simple/pkg-b") {
+			w.Write([]byte(`<html><body><a href="...">pkg_b-1.0.0-py3-none-any.whl</a></body></html>`))
+		}
+	}))
+	defer backend.Close()
+
+	_, filename, _, _ := runtime.Caller(0)
+	rootPath := filepath.Join(filepath.Dir(filename), "../../")
+
+	cmd := exec.Command("go", "run", "main.go", pipCmd, "install", "pkg-a", "--dry-run", "--no-cache-dir")
+	cmd.Dir = rootPath
+	cmd.Env = append(os.Environ(), "BUFFER7_UPSTREAM_REGISTRY="+backend.URL, "CGO_ENABLED=0")
+	
+	output, _ := cmd.CombinedOutput()
+	outputStr := string(output)
+
+	if strings.Contains(outputStr, "pkg_c-2.0.0") {
+		t.Errorf("Expected pkg_c-2.0.0 to be filtered in chained dependency, but it appeared in output. Output: %s", outputStr)
+	}
+	if !strings.Contains(outputStr, "pkg_c-1.0.0") {
+		t.Logf("Output: %s", outputStr)
 	}
 }

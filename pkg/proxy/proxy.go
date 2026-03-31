@@ -14,18 +14,20 @@ import (
 )
 
 type BufferProxy struct {
-	Target *url.URL
-	Proxy  *httputil.ReverseProxy
+	Target       *url.URL
+	Proxy        *httputil.ReverseProxy
+	RegistryType string // "npm" or "pypi"
 }
 
-func NewProxy(targetURL string) (*BufferProxy, error) {
+func NewProxy(targetURL string, registryType string) (*BufferProxy, error) {
 	target, err := url.Parse(targetURL)
 	if err != nil {
 		return nil, err
 	}
 
 	bp := &BufferProxy{
-		Target: target,
+		Target:       target,
+		RegistryType: registryType,
 	}
 
 	p := &httputil.ReverseProxy{
@@ -53,7 +55,7 @@ func NewProxy(targetURL string) (*BufferProxy, error) {
 			}
 			
 			var filtered []byte
-			if strings.Contains(bp.Target.Host, "pypi.org") {
+			if bp.RegistryType == "pypi" {
 				if strings.HasSuffix(resp.Request.URL.Path, "/json") {
 					filtered, err = filter.FilterPyPI(body)
 				} else if strings.HasPrefix(resp.Request.URL.Path, "/simple/") {
@@ -61,7 +63,7 @@ func NewProxy(targetURL string) (*BufferProxy, error) {
 					parts := strings.Split(strings.Trim(resp.Request.URL.Path, "/"), "/")
 					if len(parts) >= 2 {
 						packageName := parts[1]
-						filtered, err = filter.FilterPyPISimple(packageName, body)
+						filtered, err = filter.FilterPyPISimple(packageName, body, bp.Target.String())
 					} else {
 						filtered = body
 					}

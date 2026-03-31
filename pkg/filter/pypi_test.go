@@ -184,7 +184,7 @@ func TestFilterPyPISimpleCacheHit(t *testing.T) {
 	// 3. 调用 FilterPyPISimple，应该命中缓存且不需要执行 http.Get
 	// 由于我们注入了一个不存在的包名，如果它尝试 http.Get，会返回 404 或错误
 	// 但如果命中缓存，它将直接使用我们注入的 forbiddenVersions
-	filtered, err := FilterPyPISimple(packageName, []byte(inputHTML))
+	filtered, err := FilterPyPISimple(packageName, []byte(inputHTML), "")
 	if err != nil {
 		t.Fatalf("FilterPyPISimple failed: %v", err)
 	}
@@ -199,7 +199,7 @@ func TestFilterPyPISimpleCacheHit(t *testing.T) {
 
 	// 4. 测试 JSON 格式 (Simple JSON PEP 691)
 	inputJSON := `{"files": [{"filename": "cached-pkg-test-1.0.0.tar.gz"}, {"filename": "cached-pkg-test-2.0.0.tar.gz"}]}`
-	filteredJSON, err := FilterPyPISimple(packageName, []byte(inputJSON))
+	filteredJSON, err := FilterPyPISimple(packageName, []byte(inputJSON), "")
 	if err != nil {
 		t.Fatalf("FilterPyPISimple JSON failed: %v", err)
 	}

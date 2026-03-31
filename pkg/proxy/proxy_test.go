@@ -27,7 +27,7 @@ func TestProxyIntegration(t *testing.T) {
 	defer backend.Close()
 
 	// 2. Setup Proxy
-	p, _ := NewProxy(backend.URL)
+	p, _ := NewProxy(backend.URL, "npm")
 	proxyServer := httptest.NewServer(p)
 	defer proxyServer.Close()
 
@@ -59,8 +59,8 @@ func TestProxyPyPIIntegration(t *testing.T) {
 	defer backend.Close()
 
 	// 2. Setup Proxy targeting PyPI
-	p, _ := NewProxy(backend.URL)
-	// 强制注入 pypi.org 到 host 以触发分流 (这里 mock 一个 targetURL 包含 pypi.org)
+	p, _ := NewProxy(backend.URL, "pypi")
+	// 强制注入 pypi.org 到 host 以触发分流
 	p.Target, _ = url.Parse("https://pypi.org")
 	p.Proxy.Director = func(req *http.Request) {
 		req.URL.Scheme = "http"
@@ -104,7 +104,7 @@ func TestProxyNPMIntegration_Downgrade(t *testing.T) {
 	defer backend.Close()
 
 	// 2. Setup Proxy
-	p, _ := NewProxy(backend.URL)
+	p, _ := NewProxy(backend.URL, "npm")
 	proxyServer := httptest.NewServer(p)
 	defer proxyServer.Close()
 
@@ -153,7 +153,7 @@ func TestProxyPyPIIntegration_Filtering(t *testing.T) {
 	defer backend.Close()
 
 	// 2. Setup Proxy
-	p, _ := NewProxy(backend.URL)
+	p, _ := NewProxy(backend.URL, "pypi")
 	// 强制注入 pypi.org 到 host 以触发分流
 	p.Target, _ = url.Parse("https://pypi.org")
 	// 覆盖 Director 逻辑以便请求发往 Mock 后端
@@ -185,7 +185,7 @@ func TestProxyPyPIIntegration_Filtering(t *testing.T) {
 }
 
 func TestNewProxy_Error(t *testing.T) {
-	_, err := NewProxy(":%:invalid")
+	_, err := NewProxy(":%:invalid", "npm")
 	if err == nil {
 		t.Error("Expected error for invalid target URL")
 	}
@@ -199,7 +199,7 @@ func TestProxy_NonJSON(t *testing.T) {
 	}))
 	defer backend.Close()
 
-	p, _ := NewProxy(backend.URL)
+	p, _ := NewProxy(backend.URL, "npm")
 	proxyServer := httptest.NewServer(p)
 	defer proxyServer.Close()
 
@@ -218,7 +218,7 @@ func TestProxy_Non200(t *testing.T) {
 	}))
 	defer backend.Close()
 
-	p, _ := NewProxy(backend.URL)
+	p, _ := NewProxy(backend.URL, "npm")
 	proxyServer := httptest.NewServer(p)
 	defer proxyServer.Close()
 

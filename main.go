@@ -44,7 +44,11 @@ func main() {
 	l.Close()
 
 	// 3. Start Proxy in background
-	p, _ := proxy.NewProxy(targetRegistry)
+	registryType := "npm"
+	if envVar == "PIP_INDEX_URL" {
+		registryType = "pypi"
+	}
+	p, _ := proxy.NewProxy(targetRegistry, registryType)
 	server := &http.Server{Addr: fmt.Sprintf("127.0.0.1:%d", port), Handler: p}
 	go server.ListenAndServe()
 

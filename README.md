@@ -68,6 +68,21 @@ Buffer7 uses a pluggable handler architecture:
 
 ---
 
+## 🧪 Testing
+
+Buffer7 includes comprehensive tests, including unit tests, integration tests, and "real-world" End-to-End (E2E) tests.
+
+- **E2E Tests**: Use real `npm` and `pip` binaries against a local mock registry to verify filtering and dependency resolution.
+- **Upstream Override**: Use the `BUFFER7_UPSTREAM_REGISTRY` environment variable to point Buffer7 to a custom registry (useful for air-gapped environments or testing).
+
+To run all tests:
+```bash
+make test
+```
+*Note: E2E tests will automatically skip if `npm` or `pip` is not found in your PATH.*
+
+---
+
 ## 🤝 Contributing
 
 We welcome any form of contribution!

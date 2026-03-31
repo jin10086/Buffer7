@@ -20,7 +20,9 @@ func FilterNPM(body []byte) ([]byte, error) {
 	var forbidden []string
 	for v, tStr := range times {
 		if v == "created" || v == "modified" { continue }
-		if !IsSafe(tStr.(string)) {
+		tStrVal, ok := tStr.(string)
+		if !ok { continue }
+		if !IsSafe(tStrVal) {
 			forbidden = append(forbidden, v)
 		}
 	}

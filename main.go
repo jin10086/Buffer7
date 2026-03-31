@@ -45,7 +45,7 @@ func main() {
 	// 5. Inject Env
 	proxyURL := fmt.Sprintf("http://127.0.0.1:%d", port)
 	if envVar == "PIP_INDEX_URL" {
-		proxyURL += "/pypi" // pip 要求指向 /pypi 或 /simple
+		proxyURL += "/simple" // pip 要求指向 /pypi 或 /simple
 	}
 	env := os.Environ()
 	env = append(env, envVar+"="+proxyURL)

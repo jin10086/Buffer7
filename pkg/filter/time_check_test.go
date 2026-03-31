@@ -16,4 +16,7 @@ func TestIsSafe(t *testing.T) {
 	if IsSafe(twoDaysAgo) {
 		t.Errorf("Expected 2 days ago to be unsafe")
 	}
+	if IsSafe("invalid-time") {
+		t.Errorf("Expected invalid time to be unsafe")
+	}
 }

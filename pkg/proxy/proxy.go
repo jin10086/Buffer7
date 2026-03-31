@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httputil"
@@ -32,28 +33,53 @@ func NewProxy(targetURL string) (*BufferProxy, error) {
 			req.URL.Scheme = bp.Target.Scheme
 			req.URL.Host = bp.Target.Host
 			req.Host = bp.Target.Host
+			// 禁用压缩以简化 Body 过滤
+			req.Header.Set("Accept-Encoding", "identity")
 		},
 	}
 
 	// Modify response for metadata
 	p.ModifyResponse = func(resp *http.Response) error {
-		// 只有 200 OK 且是 JSON 时才过滤
-		if resp.StatusCode == 200 && strings.Contains(resp.Header.Get("Content-Type"), "application/json") {
-			body, _ := io.ReadAll(resp.Body)
-			var filtered []byte
-			var err error
+		contentType := resp.Header.Get("Content-Type")
+		// 只要是 JSON、HTML 或者是 PyPI 的自定义格式就参与过滤
+		isJSON := strings.Contains(contentType, "json")
+		isHTML := strings.Contains(contentType, "html")
 
+		// 只有 200 OK 且满足格式时才过滤
+		if resp.StatusCode == 200 && (isJSON || isHTML) {
+			body, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return err
+			}
+			
+			var filtered []byte
 			if strings.Contains(bp.Target.Host, "pypi.org") {
-				filtered, err = filter.FilterPyPI(body)
+				if strings.HasSuffix(resp.Request.URL.Path, "/json") {
+					filtered, err = filter.FilterPyPI(body)
+				} else if strings.HasPrefix(resp.Request.URL.Path, "/simple/") {
+					// 提取包名 (例如 /simple/requests/ -> requests)
+					parts := strings.Split(strings.Trim(resp.Request.URL.Path, "/"), "/")
+					if len(parts) >= 2 {
+						packageName := parts[1]
+						filtered, err = filter.FilterPyPISimple(packageName, body)
+					} else {
+						filtered = body
+					}
+				} else {
+					filtered = body
+				}
 			} else {
 				filtered, err = filter.FilterNPM(body)
 			}
 
-			if err == nil {
-				resp.Body = io.NopCloser(bytes.NewReader(filtered))
-				resp.ContentLength = int64(len(filtered))
-				resp.Header.Set("Content-Length", strconv.Itoa(len(filtered)))
+			// 如果过滤失败，回退到原始 Body 以确保客户端不会收到空数据
+			if err != nil {
+				filtered = body
 			}
+
+			resp.Body = io.NopCloser(bytes.NewReader(filtered))
+			resp.ContentLength = int64(len(filtered))
+			resp.Header.Set("Content-Length", strconv.Itoa(len(filtered)))
 		}
 		return nil
 	}
@@ -63,6 +89,8 @@ func NewProxy(targetURL string) (*BufferProxy, error) {
 }
 
 func (p *BufferProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	fmt.Printf("[DEBUG] Request: %s %s\n", r.Method, r.URL.Path)
+
 	// 302 Redirect for binary files (.tgz, .whl)
 	if strings.HasSuffix(r.URL.Path, ".tgz") || strings.HasSuffix(r.URL.Path, ".whl") {
 		http.Redirect(w, r, p.Target.String()+r.URL.Path, http.StatusFound)

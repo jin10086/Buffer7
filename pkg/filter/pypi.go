@@ -6,7 +6,14 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 )
+
+type pypiCacheEntry struct {
+	forbiddenVersions map[string]bool
+}
+
+var pypiMetadataCache sync.Map // key: string (packageName), value: pypiCacheEntry
 
 // FilterPyPI 过滤 PyPI 的 JSON 元数据
 func FilterPyPI(body []byte) ([]byte, error) {

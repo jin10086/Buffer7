@@ -143,3 +143,20 @@ func TestFilterPyPI_EdgeCases(t *testing.T) {
 		t.Error("Expected 6.0.0 to be filtered out with missing upload_time")
 	}
 }
+
+func TestPyPICache(t *testing.T) {
+	pkgName := "test-pkg"
+	entry := pypiCacheEntry{
+		forbiddenVersions: map[string]bool{"1.0.0": true},
+	}
+	pypiMetadataCache.Store(pkgName, entry)
+
+	val, ok := pypiMetadataCache.Load(pkgName)
+	if !ok {
+		t.Fatal("Cache miss")
+	}
+	cachedEntry := val.(pypiCacheEntry)
+	if !cachedEntry.forbiddenVersions["1.0.0"] {
+		t.Error("Wrong cache value")
+	}
+}

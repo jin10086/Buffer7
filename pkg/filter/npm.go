@@ -51,7 +51,11 @@ func FilterNPM(body []byte) ([]byte, error) {
 					newestSafe = v
 				}
 			}
-			distTags["latest"] = newestSafe
+			if newestSafe != "" {
+				distTags["latest"] = newestSafe
+			} else {
+				delete(distTags, "latest")
+			}
 		}
 	}
 

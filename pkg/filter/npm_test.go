@@ -40,3 +40,33 @@ func TestFilterNPM(t *testing.T) {
 		t.Errorf("Expected latest to be downgraded to 1.0.0, got %v", distTags["latest"])
 	}
 }
+
+func TestFilterNPM_EmptySet(t *testing.T) {
+	now := time.Now().UTC()
+	newVer := now.AddDate(0, 0, -2).Format(time.RFC3339)
+
+	input := map[string]interface{}{
+		"time": map[string]interface{}{
+			"1.1.0": newVer,
+		},
+		"versions": map[string]interface{}{
+			"1.1.0": map[string]interface{}{},
+		},
+		"dist-tags": map[string]interface{}{
+			"latest": "1.1.0",
+		},
+	}
+	body, _ := json.Marshal(input)
+	filtered, _ := FilterNPM(body)
+
+	var output map[string]interface{}
+	json.Unmarshal(filtered, &output)
+	versions := output["versions"].(map[string]interface{})
+	if len(versions) != 0 {
+		t.Errorf("Expected versions to be empty, got %d", len(versions))
+	}
+	distTags := output["dist-tags"].(map[string]interface{})
+	if distTags["latest"] != nil {
+		t.Errorf("Expected latest tag to be cleared or unchanged, got %v", distTags["latest"])
+	}
+}

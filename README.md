@@ -1,6 +1,6 @@
 # Buffer7
 
-[![Go Report Card](https://goreportcard.com/badge/github.com/buffer7/buffer7)](https://goreportcard.com/report/github.com/buffer7/buffer7)
+[![Go Report Card](https://goreportcard.com/badge/github.com/jin10086/buffer7)](https://goreportcard.com/report/github.com/jin10086/buffer7)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 [中文版 (Chinese Version)](README_CN.md)
@@ -28,10 +28,21 @@ This "Time Window" strategy effectively mitigates risks from Zero-day vulnerabil
 
 ### Installation
 
-Ensure you have a Go environment installed (1.16+), then run:
-
+#### One-liner Command (Linux/macOS)
 ```bash
-git clone https://github.com/buffer7/buffer7.git
+curl -fsSL https://raw.githubusercontent.com/jin10086/Buffer7/master/install.sh | sh
+```
+
+#### Manual Installation
+1. Go to the [GitHub Releases](https://github.com/jin10086/Buffer7/releases) page.
+2. Download the binary corresponding to your operating system and architecture.
+3. Grant execution permissions: `chmod +x buffer7`.
+4. Move the binary to a directory in your `PATH` (e.g., `/usr/local/bin`).
+
+#### Build from Source
+If you have a Go environment installed (1.16+):
+```bash
+git clone https://github.com/jin10086/buffer7.git
 cd Buffer7
 make build
 # Binary will be generated in bin/buffer7

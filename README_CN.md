@@ -1,6 +1,6 @@
 # Buffer7
 
-[![Go Report Card](https://goreportcard.com/badge/github.com/buffer7/buffer7)](https://goreportcard.com/report/github.com/buffer7/buffer7)
+[![Go Report Card](https://goreportcard.com/badge/github.com/jin10086/buffer7)](https://goreportcard.com/report/github.com/jin10086/buffer7)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 [English Version](README.md)
@@ -24,14 +24,26 @@
 
 ---
 
-## 🚀 快速上手
+## 🚀 快速开始
 
-### 安装
+### 安装 (Installation)
 
+#### 一键安装脚本 (Linux/macOS)
+```bash
+curl -fsSL https://raw.githubusercontent.com/jin10086/Buffer7/master/install.sh | sh
+```
+
+#### 手动安装
+1. 前往 [GitHub Releases](https://github.com/jin10086/Buffer7/releases) 页面。
+2. 下载对应你操作系统和架构的二进制文件。
+3. 授予执行权限：`chmod +x buffer7`。
+4. 将二进制文件移动到你的 `PATH` 路径下（例如：`/usr/local/bin`）。
+
+#### 源码构建
 确保你已安装 Go 环境（1.16+），运行：
 
 ```bash
-git clone https://github.com/buffer7/buffer7.git
+git clone https://github.com/jin10086/buffer7.git
 cd Buffer7
 make build
 # 二进制文件将生成在 bin/buffer7

@@ -9,6 +9,25 @@ import (
 	"github.com/buffer7/buffer7/pkg/proxy"
 )
 
+func selectRegistry(cmdName string) (string, string) {
+	targetRegistry := os.Getenv("BUFFER7_UPSTREAM_REGISTRY")
+	envVar := "NPM_CONFIG_REGISTRY"
+	
+	isPython := cmdName == "pip" || cmdName == "pip3" || cmdName == "poetry" || cmdName == "pdm"
+	if isPython {
+		envVar = "PIP_INDEX_URL"
+	}
+
+	if targetRegistry == "" {
+		if isPython {
+			targetRegistry = "https://pypi.org"
+		} else {
+			targetRegistry = "https://registry.npmjs.org"
+		}
+	}
+	return targetRegistry, envVar
+}
+
 func main() {
 	if len(os.Args) < 2 {
 		fmt.Println("Usage: buffer7 <command> [args...]")
@@ -17,13 +36,7 @@ func main() {
 
 	// 1. Detect command and select target
 	cmdName := os.Args[1]
-	targetRegistry := "https://registry.npmjs.org"
-	envVar := "NPM_CONFIG_REGISTRY"
-	
-	if cmdName == "pip" || cmdName == "pip3" || cmdName == "poetry" || cmdName == "pdm" {
-		targetRegistry = "https://pypi.org"
-		envVar = "PIP_INDEX_URL"
-	}
+	targetRegistry, envVar := selectRegistry(cmdName)
 
 	// 2. Find a free port
 	l, _ := net.Listen("tcp", "127.0.0.1:0")
